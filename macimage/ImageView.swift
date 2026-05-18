@@ -8,7 +8,6 @@ final class ImageView: NSView {
     let imageView: NSImageView
     private let emptyLabel: NSTextField
     private var fitScale: CGFloat = 1.0
-    
     var onImageCountChanged: ((Int, Int) -> Void)?
     
     init(imageLoader: ImageLoader) {
@@ -98,15 +97,6 @@ final class ImageView: NSView {
         guard vs.width > 0, vs.height > 0 else { return }
         fitScale = min(vs.width / img.size.width, vs.height / img.size.height)
         scrollView.animator().magnification = max(0.05, min(fitScale, 32.0))
-    }
-    
-    func toggleZoom() {
-        let current = scrollView.magnification
-        if abs(current - fitScale) < 0.01 {
-            scrollView.animator().magnification = 1.0
-        } else {
-            scrollView.animator().magnification = fitScale
-        }
     }
     
     // MARK: - Drag & Drop

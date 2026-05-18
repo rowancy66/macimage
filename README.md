@@ -14,10 +14,34 @@
 - 复制到剪贴板（⌘C）
 - 记住上次浏览位置
 
+## 快捷键
+
+| 键 | 功能 |
+|---|---|
+| `←` `→` | 上下张 |
+| `Space` | 下一张 |
+| `F` / `Enter` | 全屏 |
+| `Esc` | 退出全屏 |
+| `[` `]` | 旋转 |
+| `+` `-` `0` | 缩放 / 适配 |
+| `I` | 图片信息 |
+| `T` | 缩略图侧边栏 |
+| `⌘C` | 复制 |
+
 ## 构建
 
 ```bash
 swift build -c release
+```
+
+## 打包为 .app
+
+```bash
+APP="macimage.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp .build/release/macimage "$APP/Contents/MacOS/"
+echo -n 'APPL????' > "$APP/Contents/PkgInfo"
+# Info.plist 需包含 CFBundleDocumentTypes 注册图片格式
 ```
 
 ## 支持格式
