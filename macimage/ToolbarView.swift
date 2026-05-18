@@ -1,136 +1,79 @@
 import SwiftUI
 
 struct ToolbarView: View {
-    @ObservedObject var imageLoader: ImageLoader
-    @Binding var scale: CGFloat
-    @Binding var rotation: Double
-    @Binding var isFullscreen: Bool
-    @Binding var showInfo: Bool
+    let imageLoader: ImageLoader
+    let imageView: ImageView
+    let onToggleFullscreen: () -> Void
+    let onToggleInfo: () -> Void
+    let onCopy: () -> Void
+    let onToggleSidebar: () -> Void
+    
+    @State private var counter = 0
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Previous
-            Button(action: imageLoader.previousImage) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut(.leftArrow, modifiers: [])
-            .help("上一张 (←)")
+        HStack(spacing: 8) {
+            Button(action: { imageLoader.previousImage(); refresh() }) {
+                Image(systemName: "chevron.left").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("上一张 (←)")
             
-            // Next
-            Button(action: imageLoader.nextImage) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut(.rightArrow, modifiers: [])
-            .help("下一张 (→)")
+            Button(action: { imageLoader.nextImage(); refresh() }) {
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("下一张 (→)")
             
-            Divider()
-                .frame(height: 20)
+            Divider().frame(height: 16)
             
-            // Zoom Out
-            Button(action: { zoom(by: 0.8) }) {
-                Image(systemName: "minus.magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("-", modifiers: [])
-            .help("缩小 (-)")
+            Button(action: { imageView.zoomOut() }) {
+                Image(systemName: "minus.magnifyingglass").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("缩小 (-)")
             
-            // Zoom In
-            Button(action: { zoom(by: 1.25) }) {
-                Image(systemName: "plus.magnifyingglass")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("=", modifiers: [])
-            .help("放大 (+)")
+            Button(action: { imageView.zoomIn() }) {
+                Image(systemName: "plus.magnifyingglass").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("放大 (+)")
             
-            // Fit Window
-            Button(action: fitToWindow) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("0", modifiers: [])
-            .help("适配窗口 (0)")
+            Button(action: { imageView.fitToWindow() }) {
+                Image(systemName: "arrow.down.left.and.arrow.up.right").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("适配窗口 (0)")
             
-            Divider()
-                .frame(height: 20)
+            Divider().frame(height: 16)
             
-            // Rotate Left
-            Button(action: { rotate(by: -90) }) {
-                Image(systemName: "rotate.left")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("[", modifiers: [])
-            .help("左旋 ([)")
+            Button(action: { imageLoader.rotateLeft(); refresh() }) {
+                Image(systemName: "rotate.left").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("左旋 ([)")
             
-            // Rotate Right
-            Button(action: { rotate(by: 90) }) {
-                Image(systemName: "rotate.right")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("]", modifiers: [])
-            .help("右旋 (])")
+            Button(action: { imageLoader.rotateRight(); refresh() }) {
+                Image(systemName: "rotate.right").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("右旋 (])")
             
-            Divider()
-                .frame(height: 20)
+            Divider().frame(height: 16)
             
-            // Fullscreen
-            Button(action: toggleFullscreen) {
-                Image(systemName: isFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("f", modifiers: [])
-            .help("全屏 (F)")
+            Button(action: onToggleFullscreen) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("全屏 (F)")
             
-            // Info
-            Button(action: { showInfo.toggle() }) {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .keyboardShortcut("i", modifiers: [])
-            .help("图片信息 (I)")
+            Button(action: onToggleInfo) {
+                Image(systemName: "info.circle").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("信息 (I)")
+            
+            Button(action: onCopy) {
+                Image(systemName: "doc.on.doc").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("复制 (⌘C)")
+            
+            Button(action: onToggleSidebar) {
+                Image(systemName: "sidebar.left").font(.system(size: 13, weight: .medium))
+            }.buttonStyle(.plain).help("侧边栏 (T)")
             
             Spacer()
             
-            // Image counter
             if !imageLoader.images.isEmpty {
                 Text("\(imageLoader.currentIndex + 1) / \(imageLoader.images.count)")
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundColor(.secondary)
+                    .id(counter)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(.regularMaterial)
     }
     
-    private func zoom(by factor: CGFloat) {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            scale *= factor
-            scale = max(0.1, min(10.0, scale))
-        }
-    }
-    
-    private func fitToWindow() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            scale = 1.0
-            rotation = 0
-            offset = .zero
-        }
-    }
-    
-    private func rotate(by degrees: Double) {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            rotation += degrees
-        }
-    }
-    
-    private func toggleFullscreen() {
-        if isFullscreen {
-            NSWindow.toggleFullScreen(nil)
-        } else {
-            NSWindow.toggleFullScreen(nil)
-        }
-        isFullscreen.toggle()
-    }
+    private func refresh() { counter += 1 }
 }

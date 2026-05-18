@@ -1,6 +1,7 @@
 import Foundation
 
-class HistoryManager {
+/// Simple position history using UserDefaults.
+final class HistoryManager {
     static let shared = HistoryManager()
     
     private let defaults = UserDefaults.standard
@@ -11,19 +12,17 @@ class HistoryManager {
     func savePosition(directory: URL, index: Int) {
         var history = loadHistory()
         history[directory.path] = index
+        if history.count > 500, let oldest = history.keys.sorted().first {
+            history.removeValue(forKey: oldest)
+        }
         defaults.set(history, forKey: key)
     }
     
     func getPosition(directory: URL) -> Int? {
-        let history = loadHistory()
-        return history[directory.path]
+        loadHistory()[directory.path]
     }
     
     private func loadHistory() -> [String: Int] {
-        return defaults.dictionary(forKey: key) as? [String: Int] ?? [:]
-    }
-    
-    func clearHistory() {
-        defaults.removeObject(forKey: key)
+        defaults.dictionary(forKey: key) as? [String: Int] ?? [:]
     }
 }

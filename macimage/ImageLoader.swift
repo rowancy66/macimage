@@ -1,127 +1,146 @@
-import Foundation
 import AppKit
-import UniformTypeIdentifiers
+import Combine
 
-class ImageLoader: ObservableObject {
+/// State management for the image viewer.
+final class ImageLoader: NSObject, ObservableObject {
     @Published var images: [URL] = []
     @Published var currentIndex: Int = 0
-    
+    private(set) var rotation: CGFloat = 0
     private var currentDirectory: URL?
     
-    static let supportedExtensions: Set<String> = ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp"]
+    // Callbacks
+    var onImagesLoaded: (() -> Void)?       // ImageView display update
+    var onDisplayUpdate: (() -> Void)?      // ImageView display update (navigation/rotation)
+    var onStatusUpdate: (() -> Void)?       // AppDelegate status bar update
     
-    func loadImage(_ url: URL) {
-        let directory = url.deletingLastPathComponent()
-        currentDirectory = directory
-        
-        // Scan directory for supported images
-        let fileManager = FileManager.default
-        guard let contents = try? fileManager.contentsOfDirectory(
-            at: directory,
-            includingPropertiesForKeys: [.creationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else { return }
-        
-        // Filter and sort by filename
-        let imageFiles = contents
-            .filter { Self.supportedExtensions.contains($0.pathExtension.lowercased()) }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
-        
-        // Find index of opened file
-        let index = imageFiles.firstIndex(of: url) ?? 0
-        
-        DispatchQueue.main.async {
-            self.images = imageFiles
-            self.currentIndex = index
-        }
-        
-        // Save last position
-        HistoryManager.shared.savePosition(directory: directory, index: index)
-    }
-    
-    func nextImage() {
-        guard !images.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % images.count
-        saveCurrentPosition()
-    }
-    
-    func previousImage() {
-        guard !images.isEmpty else { return }
-        currentIndex = (currentIndex - 1 + images.count) % images.count
-        saveCurrentPosition()
-    }
-    
-    func jumpTo(index: Int) {
-        guard index >= 0 && index < images.count else { return }
-        currentIndex = index
-        saveCurrentPosition()
-    }
-    
-    func randomImage() {
-        guard images.count > 1 else { return }
-        var newIndex: Int
-        repeat {
-            newIndex = Int.random(in: 0..<images.count)
-        } while newIndex == currentIndex
-        currentIndex = newIndex
-        saveCurrentPosition()
-    }
-    
+    // Current image display
     var currentImageURL: URL? {
         guard currentIndex < images.count else { return nil }
         return images[currentIndex]
     }
     
-    var currentImage: NSImage? {
+    var originalImage: NSImage? {
         guard let url = currentImageURL else { return nil }
         return NSImage(contentsOf: url)
     }
     
-    var currentImageInfo: ImageInfo? {
-        guard let url = currentImageURL else { return nil }
-        return ImageInfo(url: url)
+    var displayImage: NSImage? {
+        guard let img = originalImage else { return nil }
+        if rotation == 0 { return img }
+        return img.rotated(byDegrees: rotation)
     }
     
-    private func saveCurrentPosition() {
-        guard let directory = currentDirectory else { return }
-        HistoryManager.shared.savePosition(directory: directory, index: currentIndex)
+    // MARK: - Load
+    
+    func loadImage(_ url: URL) {
+        let directory = url.deletingLastPathComponent()
+        currentDirectory = directory
+        
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        
+        let exts = ImageLoader.supportedExtensions
+        let imageFiles = contents
+            .filter { exts.contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+        
+        guard !imageFiles.isEmpty else { return }
+        
+        // Path-based URL matching (URL.== unreliable across creation methods)
+        let targetPath = url.resolvingSymlinksInPath().path
+        let foundIndex = imageFiles.firstIndex { $0.resolvingSymlinksInPath().path == targetPath } ?? 0
+        let savedIndex = HistoryManager.shared.getPosition(directory: directory)
+        let finalIndex = savedIndex.map { $0 < imageFiles.count ? $0 : foundIndex } ?? foundIndex
+        
+        images = imageFiles
+        currentIndex = finalIndex
+        rotation = 0
+        
+        onImagesLoaded?()
+        onDisplayUpdate?()
+        onStatusUpdate?()
     }
     
-    func restoreLastPosition() {
-        guard let directory = currentDirectory else { return }
-        if let savedIndex = HistoryManager.shared.getPosition(directory: directory) {
-            currentIndex = min(savedIndex, images.count - 1)
-        }
+    private func notifyAll() {
+        onDisplayUpdate?()
+        onStatusUpdate?()
     }
+    
+    // MARK: - Navigation
+    
+    func nextImage() {
+        guard !images.isEmpty else { return }
+        currentIndex = (currentIndex + 1) % images.count
+        resetView()
+    }
+    
+    func previousImage() {
+        guard !images.isEmpty else { return }
+        currentIndex = (currentIndex - 1 + images.count) % images.count
+        resetView()
+    }
+    
+    func jumpTo(index: Int) {
+        guard index >= 0, index < images.count else { return }
+        currentIndex = index
+        resetView()
+    }
+    
+    // MARK: - Rotation
+    
+    func rotateLeft() {
+        rotation = (rotation - 90).truncatingRemainder(dividingBy: 360)
+        if rotation < 0 { rotation += 360 }
+        notifyAll()
+    }
+    
+    func rotateRight() {
+        rotation = (rotation + 90).truncatingRemainder(dividingBy: 360)
+        notifyAll()
+    }
+    
+    // MARK: - Private
+    
+    private func resetView() {
+        rotation = 0
+        savePosition()
+        notifyAll()
+    }
+    
+    private func savePosition() {
+        guard let dir = currentDirectory else { return }
+        HistoryManager.shared.savePosition(directory: dir, index: currentIndex)
+    }
+    
+    // MARK: - Static
+    
+    static let supportedExtensions: Set<String> = [
+        "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp"
+    ]
 }
 
-struct ImageInfo {
-    let url: URL
-    let filename: String
-    let width: Int
-    let height: Int
-    let fileSize: Int64
-    let format: String
-    
-    init?(url: URL) {
-        guard let image = NSImage(contentsOf: url),
-              let rep = image.representations.first else { return nil }
-        
-        self.url = url
-        self.filename = url.lastPathComponent
-        self.width = rep.pixelsWide
-        self.height = rep.pixelsHigh
-        
-        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
-        self.fileSize = attributes?[.size] as? Int64 ?? 0
-        
-        self.format = url.pathExtension.uppercased()
-    }
-    
-    var fileSizeFormatted: String {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: fileSize)
+// MARK: - NSImage Rotation
+
+extension NSImage {
+    func rotated(byDegrees degrees: CGFloat) -> NSImage {
+        let rad = degrees * .pi / 180
+        let newSize = NSSize(
+            width: size.width * abs(cos(rad)) + size.height * abs(sin(rad)),
+            height: size.width * abs(sin(rad)) + size.height * abs(cos(rad))
+        )
+        let img = NSImage(size: newSize)
+        img.lockFocus()
+        let t = NSAffineTransform()
+        t.translateX(by: newSize.width / 2, yBy: newSize.height / 2)
+        t.rotate(byRadians: rad)
+        t.translateX(by: -size.width / 2, yBy: -size.height / 2)
+        t.concat()
+        draw(at: .zero, from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1)
+        img.unlockFocus()
+        return img
     }
 }
