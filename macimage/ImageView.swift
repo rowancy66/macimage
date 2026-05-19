@@ -1,6 +1,6 @@
 import AppKit
 
-/// The main content view — hosts NSScrollView with NSImageView and handles drag-and-drop.
+/// The main content view — hosts NSScrollView with NSImageView, handles drag-and-drop and context menu.
 final class ImageView: NSView {
     
     let imageLoader: ImageLoader
@@ -43,6 +43,8 @@ final class ImageView: NSView {
         
         registerForDraggedTypes([.fileURL, .init("NSFilenamesPboardType"), .init("public.file-url")])
         
+        setupContextMenu()
+        
         imageLoader.onImagesLoaded = { [weak self] in
             DispatchQueue.main.async { self?.updateDisplay() }
         }
@@ -62,6 +64,36 @@ final class ImageView: NSView {
         emptyLabel.frame = bounds
     }
     
+    // MARK: - Context Menu
+    
+    private func setupContextMenu() {
+        let menu = NSMenu()
+        
+        menu.addItem(NSMenuItem(title: "复制图片", action: #selector(ctxCopy), keyEquivalent: "").with(icon: "doc.on.doc"))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "左旋 90°", action: #selector(ctxRotateLeft), keyEquivalent: "").with(icon: "rotate.left"))
+        menu.addItem(NSMenuItem(title: "右旋 90°", action: #selector(ctxRotateRight), keyEquivalent: "").with(icon: "rotate.right"))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "适配窗口", action: #selector(ctxFit), keyEquivalent: "").with(icon: "arrow.down.left.and.arrow.up.right"))
+        menu.addItem(NSMenuItem(title: "实际大小", action: #selector(ctxActualSize), keyEquivalent: "").with(icon: "1.magnifyingglass"))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "在访达中显示", action: #selector(ctxRevealInFinder), keyEquivalent: "").with(icon: "folder"))
+        
+        imageView.menu = menu
+    }
+    
+    @objc private func ctxCopy() { imageLoader.copyImageToClipboard() }
+    @objc private func ctxRotateLeft() { imageLoader.rotateLeft() }
+    @objc private func ctxRotateRight() { imageLoader.rotateRight() }
+    @objc private func ctxFit() { fitToWindow() }
+    @objc private func ctxActualSize() { scrollView.animator().magnification = 1.0 }
+    @objc private func ctxRevealInFinder() {
+        guard let url = imageLoader.currentImageURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+    
+    // MARK: - Display
+    
     private func updateDisplay() {
         let hasImages = !imageLoader.images.isEmpty
         onImageCountChanged?(imageLoader.currentIndex + 1, imageLoader.images.count)
@@ -71,14 +103,10 @@ final class ImageView: NSView {
             scrollView.isHidden = false
             
             if let img = imageLoader.displayImage {
-                // Set image and its natural size as frame
                 imageView.image = img
                 imageView.frame.size = img.size
                 imageView.needsDisplay = true
-                
-                // Make scrollView aware of content size change
                 scrollView.documentView?.scroll(NSPoint.zero)
-                
                 fitToWindow()
             }
         } else {
@@ -117,5 +145,12 @@ final class ImageView: NSView {
             return true
         }
         return false
+    }
+}
+
+extension NSMenuItem {
+    func with(icon systemName: String) -> NSMenuItem {
+        image = NSImage(systemSymbolName: systemName, accessibilityDescription: nil)
+        return self
     }
 }

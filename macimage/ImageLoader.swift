@@ -8,26 +8,38 @@ final class ImageLoader: NSObject, ObservableObject {
     private(set) var rotation: CGFloat = 0
     private var currentDirectory: URL?
     
+    // Cached images — avoids recomputing on every access
+    private var _cachedOriginal: NSImage?
+    private var _cachedDisplay: NSImage?
+    private var _cachedURL: URL?
+    private var _cachedRotation: CGFloat = 0
+    
     // Callbacks
     var onImagesLoaded: (() -> Void)?       // ImageView display update
     var onDisplayUpdate: (() -> Void)?      // ImageView display update (navigation/rotation)
     var onStatusUpdate: (() -> Void)?       // AppDelegate status bar update
     
-    // Current image display
+    // Current image display (cached)
     var currentImageURL: URL? {
         guard currentIndex < images.count else { return nil }
         return images[currentIndex]
     }
     
     var originalImage: NSImage? {
-        guard let url = currentImageURL else { return nil }
-        return NSImage(contentsOf: url)
+        guard let url = currentImageURL else { _cachedOriginal = nil; return nil }
+        if _cachedURL == url { return _cachedOriginal }
+        _cachedURL = url
+        _cachedOriginal = NSImage(contentsOf: url)
+        _cachedDisplay = nil // force recompute
+        return _cachedOriginal
     }
     
     var displayImage: NSImage? {
-        guard let img = originalImage else { return nil }
-        if rotation == 0 { return img }
-        return img.rotated(byDegrees: rotation)
+        guard let img = originalImage else { _cachedDisplay = nil; return nil }
+        if _cachedRotation == rotation, let cached = _cachedDisplay { return cached }
+        _cachedRotation = rotation
+        _cachedDisplay = (rotation == 0) ? img : img.rotated(byDegrees: rotation)
+        return _cachedDisplay
     }
     
     // MARK: - Load
@@ -59,13 +71,9 @@ final class ImageLoader: NSObject, ObservableObject {
         images = imageFiles
         currentIndex = finalIndex
         rotation = 0
+        invalidateCache()
         
         onImagesLoaded?()
-        onDisplayUpdate?()
-        onStatusUpdate?()
-    }
-    
-    private func notifyAll() {
         onDisplayUpdate?()
         onStatusUpdate?()
     }
@@ -95,11 +103,13 @@ final class ImageLoader: NSObject, ObservableObject {
     func rotateLeft() {
         rotation = (rotation - 90).truncatingRemainder(dividingBy: 360)
         if rotation < 0 { rotation += 360 }
+        _cachedDisplay = nil // invalidate display cache
         notifyAll()
     }
     
     func rotateRight() {
         rotation = (rotation + 90).truncatingRemainder(dividingBy: 360)
+        _cachedDisplay = nil
         notifyAll()
     }
     
@@ -107,13 +117,35 @@ final class ImageLoader: NSObject, ObservableObject {
     
     private func resetView() {
         rotation = 0
+        invalidateCache()
         savePosition()
         notifyAll()
+    }
+    
+    private func invalidateCache() {
+        _cachedURL = nil
+        _cachedOriginal = nil
+        _cachedDisplay = nil
+        _cachedRotation = 0
+    }
+    
+    private func notifyAll() {
+        onDisplayUpdate?()
+        onStatusUpdate?()
     }
     
     private func savePosition() {
         guard let dir = currentDirectory else { return }
         HistoryManager.shared.savePosition(directory: dir, index: currentIndex)
+    }
+    
+    // MARK: - Copy
+    
+    func copyImageToClipboard() {
+        guard let img = originalImage else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects([img])
     }
     
     // MARK: - Static

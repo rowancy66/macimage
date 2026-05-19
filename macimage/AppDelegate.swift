@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(NSMenuItem(title: "关于 macimage", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
         appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(title: "偏好设置...", action: #selector(noop), keyEquivalent: ","))
+        appMenu.addItem(NSMenuItem(title: "偏好设置...", action: #selector(showPreferences), keyEquivalent: ","))
         appMenu.addItem(.separator())
         appMenu.addItem(NSMenuItem(title: "隐藏 macimage", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h"))
         appMenu.addItem(NSMenuItem(title: "隐藏其他", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h").withModifier([.command, .option]))
@@ -230,10 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
     
     @objc private func toggleFullscreen() { window.toggleFullScreen(nil) }
     
-    @objc private func editCopy() {
-        guard let image = imageLoader.originalImage else { return }
-        let pb = NSPasteboard.general; pb.clearContents(); pb.writeObjects([image])
-    }
+    @objc private func editCopy() { imageLoader.copyImageToClipboard() }
     
     @objc private func fileOpen() {
         let panel = NSOpenPanel()
@@ -245,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSToolbarDelegate {
         }
     }
     
-    @objc private func noop() {}
+    @objc private func showPreferences() { PreferencesWindowController.shared.show() }
     
     // MARK: - Callbacks
     
