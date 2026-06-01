@@ -6,7 +6,10 @@ final class ImageView: NSView {
     let imageLoader: ImageLoader
     let scrollView: NSScrollView
     let imageView: NSImageView
-    private let emptyLabel: NSTextField
+    private let spinner: NSProgressIndicator
+    private let emptyIcon: NSImageView
+    private let emptyTitle: NSTextField
+    private let emptySubtitle: NSTextField
     private var fitScale: CGFloat = 1.0
     var onImageCountChanged: ((Int, Int) -> Void)?
     
@@ -28,18 +31,39 @@ final class ImageView: NSView {
         imageView.imageScaling = .scaleNone
         imageView.imageAlignment = .alignCenter
         imageView.isEditable = false
+        imageView.wantsLayer = true
         
         scrollView.documentView = imageView
         
-        emptyLabel = NSTextField(labelWithString: "拖拽图片到此处\n或双击图片文件用 macimage 打开")
-        emptyLabel.alignment = .center
-        emptyLabel.textColor = .secondaryLabelColor
-        emptyLabel.font = .systemFont(ofSize: 16)
+        // Loading spinner
+        spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.isHidden = true
+        spinner.controlSize = .large
+        
+        // Empty state
+        emptyIcon = NSImageView()
+        emptyIcon.image = NSImage(systemSymbolName: "photo.on.rectangle.angled", accessibilityDescription: nil)
+        emptyIcon.contentTintColor = .secondaryLabelColor
+        emptyIcon.imageScaling = .scaleProportionallyDown
+        
+        emptyTitle = NSTextField(labelWithString: "拖拽图片到此处")
+        emptyTitle.alignment = .center
+        emptyTitle.textColor = .labelColor
+        emptyTitle.font = .systemFont(ofSize: 16, weight: .medium)
+        
+        emptySubtitle = NSTextField(labelWithString: "或点击工具栏打开按钮选择图片")
+        emptySubtitle.alignment = .center
+        emptySubtitle.textColor = .secondaryLabelColor
+        emptySubtitle.font = .systemFont(ofSize: 12)
         
         super.init(frame: .zero)
         
         addSubview(scrollView)
-        addSubview(emptyLabel)
+        addSubview(spinner)
+        addSubview(emptyIcon)
+        addSubview(emptyTitle)
+        addSubview(emptySubtitle)
         
         registerForDraggedTypes([.fileURL, .init("NSFilenamesPboardType"), .init("public.file-url")])
         
@@ -61,7 +85,13 @@ final class ImageView: NSView {
     override func layout() {
         super.layout()
         scrollView.frame = bounds
-        emptyLabel.frame = bounds
+        spinner.frame = NSRect(x: (bounds.width - 32) / 2, y: (bounds.height - 32) / 2, width: 32, height: 32)
+        
+        let emptyStackHeight: CGFloat = 80
+        let emptyY = (bounds.height - emptyStackHeight) / 2
+        emptyIcon.frame = NSRect(x: (bounds.width - 48) / 2, y: emptyY + 32, width: 48, height: 48)
+        emptyTitle.frame = NSRect(x: 0, y: emptyY, width: bounds.width, height: 22)
+        emptySubtitle.frame = NSRect(x: 0, y: emptyY - 20, width: bounds.width, height: 18)
     }
     
     // MARK: - Context Menu
@@ -99,21 +129,39 @@ final class ImageView: NSView {
         onImageCountChanged?(imageLoader.currentIndex + 1, imageLoader.images.count)
         
         if hasImages {
-            emptyLabel.isHidden = true
+            setEmptyStateHidden(true)
             scrollView.isHidden = false
+            spinner.isHidden = true
+            spinner.stopAnimation(nil)
             
             if let img = imageLoader.displayImage {
+                CATransaction.begin()
+                CATransaction.setAnimationDuration(0.2)
+                let transition = CATransition()
+                transition.type = .fade
+                transition.duration = 0.2
+                imageView.layer?.add(transition, forKey: "fade")
                 imageView.image = img
                 imageView.frame.size = img.size
                 imageView.needsDisplay = true
+                CATransaction.commit()
+                
                 scrollView.documentView?.scroll(NSPoint.zero)
                 fitToWindow()
             }
         } else {
-            emptyLabel.isHidden = false
+            setEmptyStateHidden(false)
             scrollView.isHidden = true
             imageView.image = nil
+            spinner.isHidden = true
+            spinner.stopAnimation(nil)
         }
+    }
+    
+    private func setEmptyStateHidden(_ hidden: Bool) {
+        emptyIcon.isHidden = hidden
+        emptyTitle.isHidden = hidden
+        emptySubtitle.isHidden = hidden
     }
     
     func zoomIn() { scrollView.animator().magnification *= 1.5 }
@@ -125,6 +173,18 @@ final class ImageView: NSView {
         guard vs.width > 0, vs.height > 0 else { return }
         fitScale = min(vs.width / img.size.width, vs.height / img.size.height)
         scrollView.animator().magnification = max(0.05, min(fitScale, 32.0))
+    }
+    
+    // MARK: - Loading
+    
+    func startLoading() {
+        spinner.isHidden = false
+        spinner.startAnimation(nil)
+    }
+    
+    func stopLoading() {
+        spinner.isHidden = true
+        spinner.stopAnimation(nil)
     }
     
     // MARK: - Drag & Drop

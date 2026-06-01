@@ -98,31 +98,30 @@ struct ThumbnailCell: View {
             
             Text(url.lastPathComponent)
                 .font(.system(size: 9.5))
-                .foregroundColor(isSelected ? .primary : .secondary)
+                .foregroundColor(isSelected ? accent : .secondary)
                 .lineLimit(1)
                 .frame(width: 186, alignment: .leading)
         }
         .padding(5)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? accent.opacity(0.08) : Color.clear)
+                .fill(isSelected ? accent.opacity(0.12) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? accent.opacity(0.35) : Color.clear, lineWidth: 1.5)
+                .stroke(isSelected ? accent.opacity(0.4) : Color.clear, lineWidth: 1.5)
         )
+        .shadow(color: isSelected ? accent.opacity(0.2) : .clear, radius: 4, y: 2)
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
         .onAppear { if thumb == nil { loadThumb() } }
+        .onDisappear { ThumbnailLoader.shared.cancelLoading(for: url) }
     }
     
     private func loadThumb() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard let img = NSImage(contentsOf: url) else { return }
-            let size = NSSize(width: 186 * 2, height: 108 * 2)
-            let t = NSImage(size: size)
-            t.lockFocus()
-            img.draw(in: NSRect(origin: .zero, size: size), from: .zero, operation: .sourceOver, fraction: 1)
-            t.unlockFocus()
-            DispatchQueue.main.async { self.thumb = t }
+        let size = CGSize(width: 186 * 2, height: 108 * 2)
+        ThumbnailLoader.shared.loadThumbnail(for: url, size: size) { image in
+            self.thumb = image
         }
     }
 }

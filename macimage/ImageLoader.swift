@@ -1,6 +1,13 @@
 import AppKit
 import Combine
 
+/// Errors that can occur during image loading.
+enum ImageLoadError: Error {
+    case directoryNotReadable
+    case noSupportedImages
+    case imageDecodeFailed
+}
+
 /// State management for the image viewer.
 final class ImageLoader: NSObject, ObservableObject {
     @Published var images: [URL] = []
@@ -18,6 +25,7 @@ final class ImageLoader: NSObject, ObservableObject {
     var onImagesLoaded: (() -> Void)?       // ImageView display update
     var onDisplayUpdate: (() -> Void)?      // ImageView display update (navigation/rotation)
     var onStatusUpdate: (() -> Void)?       // AppDelegate status bar update
+    var onError: ((ImageLoadError) -> Void)? // Error reporting
     
     // Current image display (cached)
     var currentImageURL: URL? {
@@ -44,7 +52,8 @@ final class ImageLoader: NSObject, ObservableObject {
     
     // MARK: - Load
     
-    func loadImage(_ url: URL) {
+    @discardableResult
+    func loadImage(_ url: URL) -> Result<Void, ImageLoadError> {
         let directory = url.deletingLastPathComponent()
         currentDirectory = directory
         
@@ -53,14 +62,18 @@ final class ImageLoader: NSObject, ObservableObject {
             at: directory,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
-        ) else { return }
+        ) else {
+            return .failure(.directoryNotReadable)
+        }
         
         let exts = ImageLoader.supportedExtensions
         let imageFiles = contents
             .filter { exts.contains($0.pathExtension.lowercased()) }
             .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
         
-        guard !imageFiles.isEmpty else { return }
+        guard !imageFiles.isEmpty else {
+            return .failure(.noSupportedImages)
+        }
         
         // Path-based URL matching (URL.== unreliable across creation methods)
         let targetPath = url.resolvingSymlinksInPath().path
@@ -76,6 +89,8 @@ final class ImageLoader: NSObject, ObservableObject {
         onImagesLoaded?()
         onDisplayUpdate?()
         onStatusUpdate?()
+        
+        return .success(())
     }
     
     // MARK: - Navigation
@@ -155,24 +170,23 @@ final class ImageLoader: NSObject, ObservableObject {
     ]
 }
 
-// MARK: - NSImage Rotation
+// MARK: - NSImage Rotation (CoreImage accelerated)
 
 extension NSImage {
-    func rotated(byDegrees degrees: CGFloat) -> NSImage {
+    func rotated(byDegrees degrees: CGFloat) -> NSImage? {
+        guard let cgImage = self.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        
+        let ciImage = CIImage(cgImage: cgImage)
         let rad = degrees * .pi / 180
-        let newSize = NSSize(
-            width: size.width * abs(cos(rad)) + size.height * abs(sin(rad)),
-            height: size.width * abs(sin(rad)) + size.height * abs(cos(rad))
-        )
-        let img = NSImage(size: newSize)
-        img.lockFocus()
-        let t = NSAffineTransform()
-        t.translateX(by: newSize.width / 2, yBy: newSize.height / 2)
-        t.rotate(byRadians: rad)
-        t.translateX(by: -size.width / 2, yBy: -size.height / 2)
-        t.concat()
-        draw(at: .zero, from: NSRect(origin: .zero, size: size), operation: .copy, fraction: 1)
-        img.unlockFocus()
-        return img
+        
+        let transform = CGAffineTransform(translationX: ciImage.extent.midX, y: ciImage.extent.midY)
+            .rotated(by: rad)
+            .translatedBy(x: -ciImage.extent.midX, y: -ciImage.extent.midY)
+        
+        let output = ciImage.transformed(by: transform)
+        let rep = NSCIImageRep(ciImage: output)
+        let newImage = NSImage(size: rep.size)
+        newImage.addRepresentation(rep)
+        return newImage
     }
 }

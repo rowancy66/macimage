@@ -27,25 +27,23 @@ struct StatusBarView: View {
                     Text(fileSize).font(.system(size: 11, design: .monospaced)).foregroundColor(.secondary)
                     dot
                     Badge(format)
+                    
+                    if totalCount > 0 {
+                        dot
+                        Text("\(currentIndex) / \(totalCount)")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
             
             Spacer()
-            
-            // Keyboard hints
-            if !filename.isEmpty {
-                HStack(spacing: 10) {
-                    Hint("← →", "翻页")
-                    Hint("Space", "下一张")
-                    Hint("0-9", "跳转")
-                }
-            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.ultraThinMaterial)
         .overlay(
-            Rectangle().fill(Color.primary.opacity(0.06)).frame(height: 1),
+            Rectangle().fill(Color.primary.opacity(0.12)).frame(height: 1),
             alignment: .top
         )
     }

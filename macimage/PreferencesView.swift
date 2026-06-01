@@ -43,7 +43,7 @@ struct GeneralTab: View {
                 }
             }
             
-            Divider()
+            Divider().opacity(0.5)
             
             Toggle(isOn: $showSidebarByDefault) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -55,7 +55,7 @@ struct GeneralTab: View {
                 }
             }
             
-            Divider()
+            Divider().opacity(0.5)
             
             Toggle(isOn: $quitOnClose) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -82,6 +82,7 @@ struct AboutTab: View {
                 Image(nsImage: icon)
                     .resizable()
                     .frame(width: 64, height: 64)
+                    .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
             }
             
             Text("macimage")
