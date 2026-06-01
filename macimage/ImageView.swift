@@ -11,6 +11,7 @@ final class ImageView: NSView {
     private let emptyTitle: NSTextField
     private let emptySubtitle: NSTextField
     private var fitScale: CGFloat = 1.0
+    private var needsFitAndCenter = false
     var onImageCountChanged: ((Int, Int) -> Void)?
     
     init(imageLoader: ImageLoader) {
@@ -20,7 +21,7 @@ final class ImageView: NSView {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
         scrollView.autohidesScrollers = true
-        scrollView.backgroundColor = .windowBackgroundColor
+        scrollView.backgroundColor = NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 1.0)
         scrollView.drawsBackground = true
         scrollView.allowsMagnification = true
         scrollView.minMagnification = 0.05
@@ -49,15 +50,18 @@ final class ImageView: NSView {
         
         emptyTitle = NSTextField(labelWithString: "拖拽图片到此处")
         emptyTitle.alignment = .center
-        emptyTitle.textColor = .labelColor
+        emptyTitle.textColor = NSColor(srgbRed: 0.85, green: 0.85, blue: 0.85, alpha: 1.0)
         emptyTitle.font = .systemFont(ofSize: 16, weight: .medium)
         
         emptySubtitle = NSTextField(labelWithString: "或点击工具栏打开按钮选择图片")
         emptySubtitle.alignment = .center
-        emptySubtitle.textColor = .secondaryLabelColor
+        emptySubtitle.textColor = NSColor(srgbRed: 0.55, green: 0.55, blue: 0.55, alpha: 1.0)
         emptySubtitle.font = .systemFont(ofSize: 12)
         
         super.init(frame: .zero)
+        
+        wantsLayer = true
+        layer?.backgroundColor = NSColor(srgbRed: 0.12, green: 0.12, blue: 0.12, alpha: 1.0).cgColor
         
         addSubview(scrollView)
         addSubview(spinner)
@@ -92,6 +96,12 @@ final class ImageView: NSView {
         emptyIcon.frame = NSRect(x: (bounds.width - 48) / 2, y: emptyY + 32, width: 48, height: 48)
         emptyTitle.frame = NSRect(x: 0, y: emptyY, width: bounds.width, height: 22)
         emptySubtitle.frame = NSRect(x: 0, y: emptyY - 20, width: bounds.width, height: 18)
+        
+        if needsFitAndCenter {
+            needsFitAndCenter = false
+            fitToWindow()
+            centerDocument()
+        }
     }
     
     // MARK: - Context Menu
@@ -139,18 +149,12 @@ final class ImageView: NSView {
             spinner.stopAnimation(nil)
             
             if let img = imageLoader.displayImage {
-                CATransaction.begin()
-                CATransaction.setAnimationDuration(0.2)
-                let transition = CATransition()
-                transition.type = .fade
-                transition.duration = 0.2
-                imageView.layer?.add(transition, forKey: "fade")
                 imageView.image = img
                 imageView.frame.size = img.size
                 imageView.needsDisplay = true
-                CATransaction.commit()
                 
-                fitToWindow(centered: true)
+                needsFitAndCenter = true
+                self.needsLayout = true
             }
         } else {
             setEmptyStateHidden(false)
@@ -170,34 +174,30 @@ final class ImageView: NSView {
     func zoomIn() {
         let oldMag = scrollView.magnification
         let newMag = min(oldMag * 1.5, scrollView.maxMagnification)
-        let center = visibleCenter()
-        scrollView.setMagnification(newMag, centeredAt: center)
+        scrollView.magnification = newMag
     }
+    
     func zoomOut() {
         let oldMag = scrollView.magnification
         let newMag = max(oldMag * 0.75, scrollView.minMagnification)
-        let center = visibleCenter()
-        scrollView.setMagnification(newMag, centeredAt: center)
+        scrollView.magnification = newMag
     }
     
-    private func visibleCenter() -> NSPoint {
-        let visible = scrollView.documentVisibleRect
-        return NSPoint(x: visible.midX, y: visible.midY)
-    }
-    
-    func fitToWindow(centered: Bool = false) {
+    func fitToWindow() {
         guard let img = imageView.image, img.size.width > 0, img.size.height > 0 else { return }
         let vs = scrollView.bounds.size
         guard vs.width > 0, vs.height > 0 else { return }
         fitScale = min(vs.width / img.size.width, vs.height / img.size.height)
-        let finalScale = max(0.05, min(fitScale, 32.0))
-        
-        if centered {
-            let centerPoint = NSPoint(x: img.size.width / 2, y: img.size.height / 2)
-            scrollView.setMagnification(finalScale, centeredAt: centerPoint)
-        } else {
-            scrollView.animator().magnification = finalScale
-        }
+        scrollView.magnification = max(0.05, min(fitScale, 32.0))
+    }
+    
+    private func centerDocument() {
+        guard let docView = scrollView.documentView else { return }
+        let visible = scrollView.documentVisibleRect
+        let docBounds = docView.bounds
+        let x = (docBounds.width - visible.width) / 2
+        let y = (docBounds.height - visible.height) / 2
+        docView.scroll(NSPoint(x: max(0, x), y: max(0, y)))
     }
     
     // MARK: - Loading

@@ -65,6 +65,7 @@ final class ThumbnailLoader {
             kCGImageSourceCreateThumbnailFromImageAlways: true
         ]
         guard let cgThumb = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-        return NSImage(cgImage: cgThumb, size: size)
+        let actualSize = CGSize(width: CGFloat(cgThumb.width), height: CGFloat(cgThumb.height))
+        return NSImage(cgImage: cgThumb, size: actualSize)
     }
 }

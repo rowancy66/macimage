@@ -150,7 +150,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     @objc private func tbNext() { imageLoader.nextImage() }
     @objc private func tbZoomIn() { imageView.zoomIn() }
     @objc private func tbZoomOut() { imageView.zoomOut() }
-    @objc private func tbFit() { imageView.fitToWindow(centered: true) }
+    @objc private func tbFit() { imageView.fitToWindow() }
     @objc private func tbRotL() { imageLoader.rotateLeft() }
     @objc private func tbRotR() { imageLoader.rotateRight() }
     @objc private func tbNone() {}
