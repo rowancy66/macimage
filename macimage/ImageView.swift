@@ -116,7 +116,11 @@ final class ImageView: NSView {
     @objc private func ctxRotateLeft() { imageLoader.rotateLeft() }
     @objc private func ctxRotateRight() { imageLoader.rotateRight() }
     @objc private func ctxFit() { fitToWindow() }
-    @objc private func ctxActualSize() { scrollView.animator().magnification = 1.0 }
+    @objc private func ctxActualSize() {
+        guard let img = imageView.image else { return }
+        let centerPoint = NSPoint(x: img.size.width / 2, y: img.size.height / 2)
+        scrollView.setMagnification(1.0, centeredAt: centerPoint)
+    }
     @objc private func ctxRevealInFinder() {
         guard let url = imageLoader.currentImageURL else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
@@ -146,8 +150,7 @@ final class ImageView: NSView {
                 imageView.needsDisplay = true
                 CATransaction.commit()
                 
-                scrollView.documentView?.scroll(NSPoint.zero)
-                fitToWindow()
+                fitToWindow(centered: true)
             }
         } else {
             setEmptyStateHidden(false)
@@ -164,15 +167,37 @@ final class ImageView: NSView {
         emptySubtitle.isHidden = hidden
     }
     
-    func zoomIn() { scrollView.animator().magnification *= 1.5 }
-    func zoomOut() { scrollView.animator().magnification *= 0.75 }
+    func zoomIn() {
+        let oldMag = scrollView.magnification
+        let newMag = min(oldMag * 1.5, scrollView.maxMagnification)
+        let center = visibleCenter()
+        scrollView.setMagnification(newMag, centeredAt: center)
+    }
+    func zoomOut() {
+        let oldMag = scrollView.magnification
+        let newMag = max(oldMag * 0.75, scrollView.minMagnification)
+        let center = visibleCenter()
+        scrollView.setMagnification(newMag, centeredAt: center)
+    }
     
-    func fitToWindow() {
+    private func visibleCenter() -> NSPoint {
+        let visible = scrollView.documentVisibleRect
+        return NSPoint(x: visible.midX, y: visible.midY)
+    }
+    
+    func fitToWindow(centered: Bool = false) {
         guard let img = imageView.image, img.size.width > 0, img.size.height > 0 else { return }
         let vs = scrollView.bounds.size
         guard vs.width > 0, vs.height > 0 else { return }
         fitScale = min(vs.width / img.size.width, vs.height / img.size.height)
-        scrollView.animator().magnification = max(0.05, min(fitScale, 32.0))
+        let finalScale = max(0.05, min(fitScale, 32.0))
+        
+        if centered {
+            let centerPoint = NSPoint(x: img.size.width / 2, y: img.size.height / 2)
+            scrollView.setMagnification(finalScale, centeredAt: centerPoint)
+        } else {
+            scrollView.animator().magnification = finalScale
+        }
     }
     
     // MARK: - Loading

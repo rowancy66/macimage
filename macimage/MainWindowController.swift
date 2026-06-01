@@ -150,7 +150,7 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     @objc private func tbNext() { imageLoader.nextImage() }
     @objc private func tbZoomIn() { imageView.zoomIn() }
     @objc private func tbZoomOut() { imageView.zoomOut() }
-    @objc private func tbFit() { imageView.fitToWindow() }
+    @objc private func tbFit() { imageView.fitToWindow(centered: true) }
     @objc private func tbRotL() { imageLoader.rotateLeft() }
     @objc private func tbRotR() { imageLoader.rotateRight() }
     @objc private func tbNone() {}
@@ -174,6 +174,9 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
     
     @objc func tbInfo() {
         showInfo.toggle()
+        if showInfo {
+            infoHost.isHidden = false
+        }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.25
             infoHost.animator().alphaValue = showInfo ? 1.0 : 0.0
@@ -184,7 +187,11 @@ final class MainWindowController: NSWindowController, NSToolbarDelegate {
                 frame.origin.y = frame.origin.y - 20
             }
             infoHost.animator().frame = frame
-        })
+        }) {
+            if !self.showInfo {
+                self.infoHost.isHidden = true
+            }
+        }
     }
     
     @objc private func toggleFullscreen() { window?.toggleFullScreen(nil) }
